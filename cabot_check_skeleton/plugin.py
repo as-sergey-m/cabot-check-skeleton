@@ -1,46 +1,58 @@
 from django import forms
-from cabot.plugins.models import StatusCheckPlugin
+from django.http import HttpResponseRedirect
+from django.core.urlresolvers import reverse
+from cabot.cabotapp.modelcategories.common import StatusCheck
+from cabot.cabotapp.modelcategories.common import StatusCheckResult
 from os import environ as env
+from cabot.cabotapp.views import CheckCreateView
+from cabot.cabotapp.views import CheckUpdateView
+from cabot.cabotapp.views import StatusCheckForm
 
+class SkeletonStatusCheck(StatusCheck):
+    edit_url_name = 'update-skeleton-check'
+    duplicate_url_name = 'duplicate-skeleton-check'
+    class Meta(StatusCheck.Meta):
+        proxy = True
 
-class SkeletonStatusCheckForm(forms.Form):
-    bone_name = forms.CharField(
-	help_text = 'Name of the bone to check',
-    )
+    check_name = 'skeleton'
 
+    def run(self):
 
-class SkeletonStatusCheckPlugin(StatusCheckPlugin):
-    name = 'SkeletonStatusCheckPlugin'
-    slug = 'cabot_check_skeleton'
-    author = 'Jonathan Balls'
-    version = '0.0.1'
-    font_icon = 'glyphicon glyphicon-skull'
+        print ('running skeleton check')
+        result = StatusCheckResult(status_check=self)
+        result.success = True
+        return result
 
-    config_form = SkeletonStatusCheckForm
-
-    plugin_variables = [
-	'SKELETON_LIST_OF_BONES',
-    ]
-
-    def run(self, check, result):
-
-        list_of_bones = env.get('SKELETON_LIST_OF_BONES', None)
-
-        if not list_of_bones:
-            result.succeeded = False
-            result.error = u'SKELETON_LIST_OF_BONES is not defined in environment variables'
-            return result
-
-        list_of_bones = list_of_bones.split(',')
-
-        if check.bone_name in list_of_bones:
-            result.succeeded = True
-            return result
-        else:
-            result.succeeded = False
-            result.error = u'%s is not in the list of bones' % check.bone_name
-            return result
 
     def description(self, check):
         return '%s in list of bones.' % check.bone_name
 
+class SkeletonStatusCheckForm(StatusCheckForm):
+
+    class Meta:
+        model = SkeletonStatusCheck
+        fields = (
+            'name',
+            'metric',
+            'check_type',
+            'value',
+            'frequency',
+            'active',
+            'importance',
+            'expected_num_hosts',
+            'allowed_num_failures',
+            'debounce',
+        )
+
+class SkeletonCheckCreateView(CheckCreateView):
+    model = SkeletonStatusCheck
+    form_class = SkeletonStatusCheckForm
+
+class SkeletonCheckUpdateView(CheckUpdateView):
+    model = SkeletonStatusCheck
+    form_class = SkeletonStatusCheckForm
+
+def duplicate_check(request, pk):
+    pc = StatusCheck.objects.get(pk=pk)
+    npk = pc.duplicate()
+    return HttpResponseRedirect(reverse('update-skeleton-check', kwargs={'pk': npk}))
